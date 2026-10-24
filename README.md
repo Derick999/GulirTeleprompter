@@ -28,9 +28,10 @@ iPhone (Safari): buka alamat di atas, ketuk tombol Share, pilih Add to Home Scre
 
 - Ketuk layar prompter untuk jeda atau lanjut. Geser jari untuk menggulung manual.
 - Tulis catatan di dalam kurung siku, misalnya `[senyum]`, supaya tampil sebagai label kuning.
+- Nyalakan "Kamera sebagai latar" di pengaturan untuk merekam video. Browser akan minta izin kamera dan mikrofon. Hasil rekaman bisa dibagikan atau diunduh. Teks prompter tidak ikut terekam.
 - Mode cermin dipakai kalau HP dipasang menghadap kaca beam splitter di depan lensa.
 - Di laptop: Spasi putar/jeda, panah atas/bawah ubah kecepatan, + dan - ubah ukuran huruf, M cermin, Esc kembali.
 
 ## Mengubah aplikasi
 
-Setelah mengedit `index.html`, naikkan nomor versi di `sw.js` (`gulir-v1` jadi `gulir-v2`) supaya HP mengambil versi terbaru.
+Setelah mengedit `index.html`, naikkan nomor versi di `sw.js` (`gulir-v2` jadi `gulir-v3`) supaya HP mengambil versi terbaru.

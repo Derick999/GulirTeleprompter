@@ -1,6 +1,6 @@
 /* Service worker Gulir: cache supaya aplikasi bisa dibuka tanpa internet.
    Naikkan nomor versi di CACHE setiap kali index.html diubah. */
-const CACHE = 'gulir-v1';
+const CACHE = 'gulir-v2';
 const CORE = [
   './',
   './index.html',

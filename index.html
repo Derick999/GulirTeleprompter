@@ -206,6 +206,32 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
 .stepval { text-align: center; line-height: 1.15; }
 .stepval small { display: block; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(246, 242, 231, 0.65); }
 .stepval b { font: 500 1.05rem var(--font-mono); }
+/* Kamera dan rekaman */
+.cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+.cam.selfie { transform: scaleX(-1); }
+.shade { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.38); pointer-events: none; }
+.stage:not(.cam-on) .cam, .stage:not(.cam-on) .shade { display: none; }
+.stage.cam-on .text { text-shadow: 0 2px 14px rgba(0, 0, 0, 0.85); }
+.rbtn.rec { color: #ff5a4a; }
+.rbtn.rec svg { fill: currentColor; stroke: none; }
+.rbtn.rec[aria-pressed="true"] { background: #e5372a; color: #fff; border-color: transparent; }
+.rec-time { color: #ff7a6b; }
+.toast {
+  position: absolute; left: 50%; top: calc(max(10px, env(safe-area-inset-top, 0px)) + 64px); transform: translateX(-50%);
+  z-index: 9; width: max-content; max-width: min(92vw, 28rem); background: rgba(20, 24, 34, 0.96); color: var(--stage-fg);
+  border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 12px; padding: 10px 14px; font-size: 0.92rem; text-align: center; pointer-events: none;
+}
+.done {
+  position: absolute; inset: 0; z-index: 10; background: rgba(5, 7, 11, 0.95); display: grid; place-items: center; overflow-y: auto;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+.done-card { width: min(100%, 30rem); display: grid; gap: 14px; }
+.done-card h2 { margin: 0; font: 700 1.4rem/1.2 var(--font-display); }
+.done-card video { width: 100%; max-height: 52vh; background: #000; border-radius: 12px; }
+.done-meta { margin: 0; font: 500 0.82rem var(--font-mono); color: rgba(246, 242, 231, 0.7); overflow-wrap: anywhere; }
+.done-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pbtn { min-height: 50px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.08); color: var(--stage-fg); cursor: pointer; font-weight: 700; padding: 0 12px; }
+.pbtn.main { background: var(--stage-accent); color: var(--stage-ink); border: 0; }
 @media (prefers-reduced-motion: reduce) { .topbar, .hud, .switch input, .switch input::after { transition: none; } }
 </style>
 </head>
@@ -253,6 +279,8 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
         <label class="switch"><span>Rata tengah</span><input id="optCenter" type="checkbox"></label>
         <label class="switch"><span>Garis baca<small>Penanda baris yang sedang dibaca</small></span><input id="optGuide" type="checkbox"></label>
         <label class="switch"><span>Hitung mundur 3 detik</span><input id="optCount" type="checkbox"></label>
+        <label class="switch"><span>Kamera sebagai latar<small>Bisa merekam video. Izin kamera dan mikrofon diminta saat prompter dibuka</small></span><input id="optCam" type="checkbox"></label>
+        <label class="switch"><span>Pakai kamera belakang</span><input id="optRear" type="checkbox"></label>
       </div>
       <div id="preview" class="preview" aria-hidden="true">Halo, ini ukuran huruf yang akan tampil.</div>
       <p class="preview-label">Contoh pada ukuran sebenarnya di layar ini</p>
@@ -270,6 +298,8 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
 </div>
 
 <section id="stage" class="stage" hidden aria-label="Layar prompter">
+  <video id="cam" class="cam" playsinline muted autoplay></video>
+  <div class="shade"></div>
   <div id="view" class="view">
     <div id="track" class="track"><div id="text" class="text"></div></div>
     <div id="guide" class="guide"></div>
@@ -281,7 +311,10 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
     <button id="backBtn" class="rbtn sm" type="button" aria-label="Kembali ke editor">
       <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
     </button>
-    <div class="readouts"><span id="remain">sisa 00:00</span><span id="wpm">≈ 0 kata/mnt</span></div>
+    <div class="readouts"><span id="recTime" class="rec-time" hidden>● 00:00</span><span id="remain">sisa 00:00</span><span id="wpm">≈ 0 kata/mnt</span></div>
+    <button id="flipBtn" class="rbtn sm" type="button" aria-label="Ganti kamera depan atau belakang" hidden>
+      <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>
+    </button>
     <button id="fsBtn" class="rbtn sm" type="button" aria-label="Layar penuh" hidden>
       <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
     </button>
@@ -295,6 +328,10 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
       <button id="playBtn" class="rbtn play" type="button" aria-label="Putar">
         <svg id="icPlay" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
         <svg id="icPause" viewBox="0 0 24 24" hidden><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+      </button>
+      <button id="recBtn" class="rbtn rec" type="button" aria-label="Rekam video" aria-pressed="false" hidden>
+        <svg id="icRec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg>
+        <svg id="icStop" viewBox="0 0 24 24" hidden><rect x="7" y="7" width="10" height="10" rx="2"/></svg>
       </button>
       <button id="mirrorBtn" class="rbtn" type="button" aria-label="Mode cermin" aria-pressed="false">
         <svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M8 7L3 12l5 5z"/><path d="M16 7l5 5-5 5z"/></svg>
@@ -310,6 +347,20 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
         <button id="sizeDown" class="rbtn sm" type="button" aria-label="Huruf lebih kecil"><svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg></button>
         <div class="stepval"><small>Huruf</small><b id="sizeVal">44</b></div>
         <button id="sizeUp" class="rbtn sm" type="button" aria-label="Huruf lebih besar"><svg viewBox="0 0 24 24"><path d="M6 12h12M12 6v12"/></svg></button>
+      </div>
+    </div>
+  </div>
+  <div id="toast" class="toast" hidden role="status"></div>
+  <div id="done" class="done" hidden>
+    <div class="done-card">
+      <h2>Rekaman selesai</h2>
+      <video id="doneVideo" controls playsinline></video>
+      <p id="doneMeta" class="done-meta"></p>
+      <div class="done-actions">
+        <button id="shareBtn" class="pbtn main" type="button" hidden>Bagikan / simpan</button>
+        <button id="dlBtn" class="pbtn main" type="button">Unduh file</button>
+        <button id="againBtn" class="pbtn" type="button">Rekam lagi</button>
+        <button id="closeBtn" class="pbtn" type="button">Tutup</button>
       </div>
     </div>
   </div>
@@ -342,14 +393,14 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
   if (!Array.isArray(scripts) || !scripts.length) scripts = [{ id: uid(), title: 'Contoh naskah', text: SAMPLE }];
   var activeId = load(KEY.a, null);
   if (!scripts.some(function (s) { return s.id === activeId; })) activeId = scripts[0].id;
-  var prefs = Object.assign({ speed: 6, size: 44, mirror: false, center: false, guide: true, count: true }, load(KEY.p, {}));
+  var prefs = Object.assign({ speed: 6, size: 44, mirror: false, center: false, guide: true, count: true, cam: false, rear: false }, load(KEY.p, {}));
   prefs.speed = clamp(Math.round(+prefs.speed || 6), 1, 20);
   prefs.size = clamp(Math.round(+prefs.size || 44), 24, 120);
 
   var el = {};
   ['editor','stage','view','track','text','guide','count','progBar','remain','wpm','chips','scriptText','wordCount','estTime','delBtn',
    'optSpeed','optSize','outSpeed','outSize','optMirror','optCenter','optGuide','optCount','preview','startBtn',
-   'backBtn','fsBtn','restartBtn','playBtn','icPlay','icPause','mirrorBtn','spdDown','spdUp','spdVal','sizeDown','sizeUp','sizeVal'
+   'backBtn','fsBtn','flipBtn','recBtn','icRec','icStop','recTime','cam','toast','done','doneVideo','doneMeta','shareBtn','dlBtn','againBtn','closeBtn','optCam','optRear','restartBtn','playBtn','icPlay','icPause','mirrorBtn','spdDown','spdUp','spdVal','sizeDown','sizeUp','sizeVal'
   ].forEach(function (id) { el[id] = document.getElementById(id); });
 
   function active() { return scripts.filter(function (s) { return s.id === activeId; })[0]; }
@@ -434,7 +485,7 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
     el.optSpeed.value = prefs.speed; el.outSpeed.textContent = prefs.speed;
     el.optSize.value = Math.min(prefs.size, 96); el.outSize.textContent = prefs.size + ' px';
     el.optMirror.checked = prefs.mirror; el.optCenter.checked = prefs.center;
-    el.optGuide.checked = prefs.guide; el.optCount.checked = prefs.count;
+    el.optGuide.checked = prefs.guide; el.optCount.checked = prefs.count; el.optCam.checked = prefs.cam; el.optRear.checked = prefs.rear;
     el.preview.style.fontSize = prefs.size + 'px';
     el.preview.classList.toggle('mirror', prefs.mirror);
     el.preview.classList.toggle('center', prefs.center);
@@ -450,6 +501,8 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
   el.optCenter.addEventListener('change', function () { prefs.center = el.optCenter.checked; savePrefs(); applyPrefsUI(); });
   el.optGuide.addEventListener('change', function () { prefs.guide = el.optGuide.checked; savePrefs(); applyPrefsUI(); });
   el.optCount.addEventListener('change', function () { prefs.count = el.optCount.checked; savePrefs(); });
+  el.optCam.addEventListener('change', function () { prefs.cam = el.optCam.checked; savePrefs(); });
+  el.optRear.addEventListener('change', function () { prefs.rear = el.optRear.checked; savePrefs(); });
 
   /* ---------- Prompter ---------- */
   var pos = 0, maxPos = 0, guideY = 0, words = 0;
@@ -558,15 +611,128 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
   }
   function unlockScreen() { try { if (wake) wake.release(); } catch (e) {} wake = null; }
 
+  /* ---------- Kamera dan rekaman ---------- */
+  var stream = null, camOn = false, recorder = null, chunks = [], recording = false;
+  var recStart = 0, recT = 0, recMime = '', blobUrl = '', blobFile = null, blobName = '', toastT = 0;
+
+  function say(msg) {
+    el.toast.textContent = msg; el.toast.hidden = false;
+    clearTimeout(toastT); toastT = setTimeout(function () { el.toast.hidden = true; }, 4500);
+  }
+  function syncCamUI() {
+    el.stage.classList.toggle('cam-on', camOn);
+    el.recBtn.hidden = !camOn; el.flipBtn.hidden = !camOn;
+    el.cam.classList.toggle('selfie', !prefs.rear);
+  }
+  function stopStream() {
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); }
+    stream = null; camOn = false; el.cam.srcObject = null; syncCamUI();
+  }
+  function startCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      say('Browser ini belum mendukung kamera.'); return Promise.resolve(false);
+    }
+    var portrait = window.innerHeight > window.innerWidth;
+    var video = { facingMode: prefs.rear ? 'environment' : 'user', width: { ideal: portrait ? 1080 : 1920 }, height: { ideal: portrait ? 1920 : 1080 } };
+    return navigator.mediaDevices.getUserMedia({ video: video, audio: true }).catch(function () {
+      return navigator.mediaDevices.getUserMedia({ video: video, audio: false }).then(function (s) {
+        say('Mikrofon tidak bisa diakses, video direkam tanpa suara.'); return s;
+      });
+    }).then(function (s) {
+      stream = s; camOn = true; el.cam.srcObject = s;
+      var p = el.cam.play(); if (p && p.catch) p.catch(function () {});
+      syncCamUI(); return true;
+    }).catch(function () {
+      say('Kamera tidak bisa diakses. Izinkan kamera di pengaturan browser, atau matikan opsi kamera.');
+      camOn = false; syncCamUI(); return false;
+    });
+  }
+
+  function pickMime() {
+    if (!window.MediaRecorder) return null;
+    var list = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+    for (var i = 0; i < list.length; i++) { if (MediaRecorder.isTypeSupported(list[i])) return list[i]; }
+    return '';
+  }
+  function fmtRec() { return '● ' + mmss((performance.now() - recStart) / 1000); }
+  function freeBlob() {
+    if (blobUrl) { el.doneVideo.removeAttribute('src'); el.doneVideo.load(); URL.revokeObjectURL(blobUrl); }
+    blobUrl = ''; blobFile = null; chunks = [];
+  }
+  function startRecording() {
+    if (!stream || recording) return;
+    var mime = pickMime();
+    if (mime === null) { say('Browser ini belum bisa merekam video.'); return; }
+    try { recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream); }
+    catch (e) { say('Perekam video gagal dimulai.'); return; }
+    recMime = recorder.mimeType || mime || 'video/webm'; chunks = [];
+    recorder.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+    recorder.onstop = onRecStop;
+    recorder.start(1000);
+    recording = true; recStart = performance.now();
+    el.recTime.hidden = false; el.recTime.textContent = fmtRec();
+    recT = setInterval(function () { el.recTime.textContent = fmtRec(); }, 500);
+    el.recBtn.setAttribute('aria-pressed', 'true'); el.icRec.hidden = true; el.icStop.hidden = false;
+    if (pos >= maxPos - 1) { pos = 0; render(); }
+    if (!playing && !counting) startCountdown();
+  }
+  function stopRecording() {
+    if (!recording) return;
+    recording = false; clearInterval(recT); el.recTime.hidden = true;
+    el.recBtn.setAttribute('aria-pressed', 'false'); el.icRec.hidden = false; el.icStop.hidden = true;
+    try { recorder.stop(); } catch (e) { onRecStop(); }
+  }
+  function onRecStop() {
+    pause(); cancelCountdown();
+    if (!chunks.length) { say('Rekaman kosong, tidak ada yang tersimpan.'); return; }
+    var blob = new Blob(chunks, { type: recMime });
+    var ext = recMime.indexOf('mp4') > -1 ? 'mp4' : 'webm';
+    var d = new Date(), z = function (n) { return (n < 10 ? '0' : '') + n; };
+    blobName = 'gulir-' + d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '-' + z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds()) + '.' + ext;
+    freeBlob();
+    chunks = [];
+    blobUrl = URL.createObjectURL(blob);
+    try { blobFile = new File([blob], blobName, { type: recMime }); } catch (e) { blobFile = null; }
+    el.doneVideo.src = blobUrl;
+    el.doneMeta.textContent = blobName + ' · ' + (blob.size / 1048576).toFixed(1) + ' MB';
+    el.shareBtn.hidden = !(blobFile && navigator.canShare && navigator.share && navigator.canShare({ files: [blobFile] }));
+    el.done.hidden = false;
+  }
+
+  el.recBtn.addEventListener('click', function () { if (recording) stopRecording(); else startRecording(); });
+  el.flipBtn.addEventListener('click', function () {
+    if (recording) { say('Hentikan rekaman dulu sebelum ganti kamera.'); return; }
+    prefs.rear = !prefs.rear; savePrefs(); applyPrefsUI(); stopStream(); startCamera();
+  });
+  el.shareBtn.addEventListener('click', function () {
+    if (!blobFile) return;
+    navigator.share({ files: [blobFile], title: blobName }).catch(function () {});
+  });
+  el.dlBtn.addEventListener('click', function () {
+    if (!blobUrl) return;
+    var a = document.createElement('a'); a.href = blobUrl; a.download = blobName;
+    document.body.appendChild(a); a.click(); a.remove();
+  });
+  el.againBtn.addEventListener('click', function () { freeBlob(); el.done.hidden = true; pos = 0; render(); showHud(); });
+  el.closeBtn.addEventListener('click', function () { el.done.hidden = true; leaveStage(); });
+
   function enterStage() {
     if (!active().text.trim()) return;
     persist(); buildText(); applyPrefsUI();
-    el.editor.hidden = true; el.stage.hidden = false;
+    el.editor.hidden = true; el.stage.hidden = false; el.done.hidden = true;
     pos = 0; maxPos = 0; shown = '';
-    layout(false); updatePlayUI(); lockScreen(); startCountdown();
+    layout(false); updatePlayUI(); lockScreen(); showHud();
+    if (prefs.cam) {
+      startCamera().then(function (ok) {
+        if (el.stage.hidden) { stopStream(); return; }
+        if (!ok) startCountdown(); else showHud();
+      });
+    } else { syncCamUI(); startCountdown(); }
   }
   function leaveStage() {
-    pause(); cancelCountdown(); unlockScreen();
+    if (recording) { stopRecording(); return; }
+    pause(); cancelCountdown(); unlockScreen(); stopStream(); freeBlob();
+    el.done.hidden = true;
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
     el.stage.hidden = true; el.editor.hidden = false;
   }
