@@ -1,6 +1,6 @@
-/* Service worker Gulir: cache supaya aplikasi bisa dibuka tanpa internet.
+/* Service worker Gulir: bisa dibuka tanpa internet, tapi selalu mengambil versi terbaru lebih dulu.
    Naikkan nomor versi di CACHE setiap kali index.html diubah. */
-const CACHE = 'gulir-v2';
+const CACHE = 'gulir-v3';
 const CORE = [
   './',
   './index.html',
@@ -11,7 +11,11 @@ const CORE = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => c.addAll(CORE.map((u) => new Request(u, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {
@@ -29,18 +33,27 @@ self.addEventListener('fetch', (e) => {
   const isFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   if (url.origin !== location.origin && !isFont) return;
 
-  e.respondWith(
-    caches.match(req).then((hit) => {
-      const net = fetch(req)
-        .then((res) => {
-          if (res && (res.ok || res.type === 'opaque')) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy));
-          }
+  if (isFont) {
+    // font: pakai cache dulu, perbarui di belakang
+    e.respondWith(
+      caches.match(req).then((hit) => {
+        const net = fetch(req).then((res) => {
+          if (res && (res.ok || res.type === 'opaque')) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
           return res;
-        })
-        .catch(() => hit);
-      return hit || net;
-    })
+        }).catch(() => hit);
+        return hit || net;
+      })
+    );
+    return;
+  }
+
+  // file aplikasi: ambil dari jaringan dulu (melewati cache HTTP), cache hanya jika offline
+  e.respondWith(
+    fetch(req, { cache: 'no-cache' })
+      .then((res) => {
+        if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
+        return res;
+      })
+      .catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html')))
   );
 });

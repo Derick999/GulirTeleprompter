@@ -212,6 +212,7 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
 .shade { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.38); pointer-events: none; }
 .stage:not(.cam-on) .cam, .stage:not(.cam-on) .shade { display: none; }
 .stage.cam-on .text { text-shadow: 0 2px 14px rgba(0, 0, 0, 0.85); }
+.stage.cam-on .cue { text-shadow: none; }
 .rbtn.rec { color: #ff5a4a; }
 .rbtn.rec svg { fill: currentColor; stroke: none; }
 .rbtn.rec[aria-pressed="true"] { background: #e5372a; color: #fff; border-color: transparent; }
@@ -248,7 +249,7 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
       </svg>
       <h1>Gulir</h1>
     </div>
-    <span class="local-note">Naskah tersimpan di perangkat ini</span>
+    <span class="local-note">Naskah tersimpan di perangkat ini · versi 3 (kamera)</span>
   </header>
 
   <div id="chips" class="chips" role="group" aria-label="Daftar naskah"></div>
@@ -617,7 +618,7 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
 
   function say(msg) {
     el.toast.textContent = msg; el.toast.hidden = false;
-    clearTimeout(toastT); toastT = setTimeout(function () { el.toast.hidden = true; }, 4500);
+    clearTimeout(toastT); toastT = setTimeout(function () { el.toast.hidden = true; }, 9000);
   }
   function syncCamUI() {
     el.stage.classList.toggle('cam-on', camOn);
@@ -630,7 +631,7 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
   }
   function startCamera() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      say('Browser ini belum mendukung kamera.'); return Promise.resolve(false);
+      say('Kamera tidak tersedia di sini' + (window.isSecureContext ? '.' : ' (halaman bukan HTTPS).') + ' Buka lewat Chrome atau Safari langsung.'); return Promise.resolve(false);
     }
     var portrait = window.innerHeight > window.innerWidth;
     var video = { facingMode: prefs.rear ? 'environment' : 'user', width: { ideal: portrait ? 1080 : 1920 }, height: { ideal: portrait ? 1920 : 1080 } };
@@ -642,8 +643,13 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent)
       stream = s; camOn = true; el.cam.srcObject = s;
       var p = el.cam.play(); if (p && p.catch) p.catch(function () {});
       syncCamUI(); return true;
-    }).catch(function () {
-      say('Kamera tidak bisa diakses. Izinkan kamera di pengaturan browser, atau matikan opsi kamera.');
+    }).catch(function (err) {
+      var why = err && err.name ? err.name : 'error';
+      var tip = why === 'NotAllowedError' ? 'Izin kamera ditolak. Izinkan lewat ikon gembok di sebelah alamat.'
+        : why === 'NotFoundError' ? 'Kamera tidak ditemukan di perangkat ini.'
+        : why === 'NotReadableError' ? 'Kamera sedang dipakai aplikasi lain. Tutup aplikasi itu dulu.'
+        : 'Coba muat ulang halaman.';
+      say('Kamera tidak bisa diakses (' + why + '). ' + tip);
       camOn = false; syncCamUI(); return false;
     });
   }

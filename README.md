@@ -34,4 +34,4 @@ iPhone (Safari): buka alamat di atas, ketuk tombol Share, pilih Add to Home Scre
 
 ## Mengubah aplikasi
 
-Setelah mengedit `index.html`, naikkan nomor versi di `sw.js` (`gulir-v2` jadi `gulir-v3`) supaya HP mengambil versi terbaru.
+Setelah mengedit `index.html`, naikkan nomor versi di `sw.js` (`gulir-v3` jadi `gulir-v4`) supaya HP mengambil versi terbaru.
